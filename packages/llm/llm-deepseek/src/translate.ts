@@ -1,6 +1,6 @@
 /** Translate Messages events while preserving block order and cumulative usage. */
 
-import { LlmError, ToolCallId } from '@deepseek-ai/dsh-llm'
+import { INVALID_TOOL_JSON_CODE, LlmError, ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, FinishReason, StreamChunk, TokenUsage } from '@deepseek-ai/dsh-llm'
 import { object, replayState } from './replay.ts'
 import type { ReplayBlock } from './replay.ts'
@@ -152,7 +152,9 @@ export async function* translate(events: AsyncIterable<Record<string, unknown>>,
         for (const { content } of blocks.values()) {
           if (content.type !== 'tool-call') continue
           let parsed: unknown
-          try { parsed = JSON.parse(content.arguments) } catch (_invalidProviderToolJson) { return malformed('tool input is invalid JSON') }
+          try { parsed = JSON.parse(content.arguments) } catch (_invalidProviderToolJson) {
+            throw new LlmError('DeepSeek Messages stream: tool input is invalid JSON', INVALID_TOOL_JSON_CODE)
+          }
           object(parsed)
         }
       }

@@ -47,13 +47,15 @@ Choose it when a composition runs the agent loop and wants durable request recov
 - name: '@deepseek-ai/dsh-llm-retry'
 ```
 
-Omission of `retryPolicy` uses normal mode: five retries for `EMPTY_RESPONSE`, `RATE_LIMIT`, `SERVER`, `TIMEOUT`, and `TRANSPORT`, with bounded exponential backoff from 500 ms to 10 seconds and 10 percent jitter. Normal mode can change its finite budget, eligible codes, and backoff; always mode asks downstream recovery first, then retries every model-request failure without an attempt limit, stopping only on success, cancellation, or plugin disposal.
+Omission of `retryPolicy` uses normal mode: five retries for `EMPTY_RESPONSE`, `INVALID_TOOL_JSON`, `RATE_LIMIT`, `SERVER`, `TIMEOUT`, and `TRANSPORT`, with bounded exponential backoff from 500 ms to 10 seconds and 10 percent jitter. Normal mode can change its finite budget, eligible codes, and backoff; always mode asks downstream recovery first, then retries every model-request failure without an attempt limit, stopping only on success, cancellation, or plugin disposal.
 
 ### What you can observe
 
 Each scheduled retry is durable before its wait: the plugin appends a non-surface `llm/retry` event carrying the retry id, provider, mode, policy key, failure, and scheduled delay, then a `llm/retry-started` event immediately before the retry begins. A valid `Retry-After` from the provider replaces local backoff when it fits the policy bounds. When the wait completes, the loop re-runs the failed step inside the same open turn over the same durable history, so the retried request is reconstructable from the session log exactly like the original. Cancellation or plugin disposal aborts active backoff, drains active delegated recovery, and makes a callback captured before disposal fail closed.
 
 ### Failures and recovery
+
+`INVALID_TOOL_JSON` rejects a completed model response whose tool arguments have invalid JSON syntax. The failed response remains an `assistant/attempt`; none of its tool calls execute, including valid siblings. A retry requests a new response over the same committed history, preserving earlier tool results without replaying their effects. It does not repair JSON or add the invalid response to model history. Other protocol failures remain outside the default retry set.
 
 A failure before any final adapter is selected has no provider policy and delegates downstream unchanged. In normal mode, a failure code outside the eligible set, or an exhausted budget, delegates; in always mode, an over-cap provider delay uses the configured local backoff so the policy cannot terminate on that instruction. Nothing here is model-visible: no retry event, delay, provider error, or failed partial output reaches the model or derived messages.
 

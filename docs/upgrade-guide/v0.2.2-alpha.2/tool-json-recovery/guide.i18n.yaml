@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-alpha.2/tool-json-recovery/guide.md
+/:
+  en: d58dbbc09b470755
+  zh: a229a70e7fc6144e
+/invalid-tool-json-uses-a-dedicated-error-code:
+  en: 55e6f288f522fd77
+  zh: 83fd0ee4a290374b
+/invalid-tool-json-uses-a-dedicated-error-code/change:
+  en: 1736c5f2f1579da9
+  zh: 5438323be2a9703a
+/invalid-tool-json-uses-a-dedicated-error-code/migration:
+  en: 68b58ee37594bbe6
+  zh: fbd538ece08c0930

@@ -78,11 +78,15 @@ describe('Messages stream', () => {
     await expect(chunks(translate(events(values as Record<string, unknown>[]), MODEL))).rejects.toMatchObject({ code: 'MALFORMED_RESPONSE' })
   })
 
-  it.each(['{', '[]'])('refuses completed non-object tool JSON %s without repairing it', async (partial_json) => {
+  it.each([
+    ['{', 'INVALID_TOOL_JSON'],
+    ['{"request":{"timeout_seconds":300}]}', 'INVALID_TOOL_JSON'],
+    ['[]', 'MALFORMED_RESPONSE'],
+  ])('refuses completed tool input %s without repairing it', async (partial_json, code) => {
     await expect(chunks(translate(events([start,
       { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'a', name: 'read', input: {} } },
       { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json } },
-      { type: 'content_block_stop', index: 0 }, ...end('tool_use')]), MODEL))).rejects.toMatchObject({ code: 'MALFORMED_RESPONSE' })
+      { type: 'content_block_stop', index: 0 }, ...end('tool_use')]), MODEL))).rejects.toMatchObject({ code })
   })
 
   it('refuses unsupported response content, empty responses and premature EOF', async () => {

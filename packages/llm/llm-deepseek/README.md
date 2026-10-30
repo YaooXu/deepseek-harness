@@ -112,6 +112,8 @@ When `ctx.deepseekLlmApiExtensions` is present, the adapter prepares its registe
 
 ### Failures and recovery
 
+Syntactically invalid tool arguments in a completed, non-truncated response throw `INVALID_TOOL_JSON`. The [retry executor](../llm-retry/README.md) regenerates the failed response within the provider retry budget; the adapter itself remains single-attempt. Non-object JSON, malformed SSE, and invalid event ordering retain their protocol error classification.
+
 Configuration accepts Messages only and has no `protocol` field. If resolution reports `protocol is not configurable`, remove `protocol` from the `config` of the `llm-deepseek` entry in `$DSH_HOME/profiles/<profile>/cordis.patch.yml` and from any overriding home patch or command-line overlay. Keep the intended `baseURL`, `apiKeyEnv`, and `models` fields. A stored configuration rejected by adapter validation makes subsequent requests fail until corrected; saving other fields in the Models card does not remove an unknown property. Edit the configuration file, then let the profile reload it through HMR or restart the profile if HMR is disabled.
 
 Successful Files responses must contain valid JSON. JSON decoding failures from upload, list, retrieve, and delete throw `INVALID_RESPONSE` with the operation and HTTP status in the message, the status in `LlmError.failure`, and the original parser error as `cause`. Body-read transport and cancellation errors retain their identity.

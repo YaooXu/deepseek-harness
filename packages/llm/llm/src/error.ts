@@ -42,6 +42,14 @@ export const ACCOUNT_QUOTA_EXCEEDED_CODE = 'ACCOUNT_QUOTA'
 export const EMPTY_RESPONSE_CODE = 'EMPTY_RESPONSE'
 
 /**
+ * Completed model response containing syntactically invalid tool arguments.
+ * Adapters emit this before a successful finish; the agent retains the failed
+ * attempt for diagnostics but commits no message or tool execution from it.
+ * Retrying regenerates that request, never repairs or executes the rejected JSON.
+ */
+export const INVALID_TOOL_JSON_CODE = 'INVALID_TOOL_JSON'
+
+/**
  * Canonical provider-neutral code for a credential that was supplied but
  * cannot be used — malformed rather than absent. Distinct from
  * `MISSING_CREDENTIAL` because the fix differs: correct the stored value
