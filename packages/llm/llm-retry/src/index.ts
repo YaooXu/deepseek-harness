@@ -11,6 +11,7 @@ import z from '@deepseek-ai/schemastery'
 import { z as zod } from 'zod'
 import type { Agent, RequestErrorAction } from '@deepseek-ai/dsh-agent'
 import type { LlmFailure, ResolvedRetryPolicy } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, INVALID_TOOL_JSON_CODE } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import { RetryId } from './brand.ts'
 import type { LlmRetryEventData } from './types.ts'
@@ -183,6 +184,18 @@ export async function apply(ctx: Context, config: Config = {}, internals: RetryI
       }
     agent.session.append('llm/retry', eventData)
     if (!await cancellableDelay(delayMs, fusedSignal)) return
+    if (failure.code === INVALID_TOOL_JSON_CODE) {
+      agent.session.append('user/message', createUserMessage({
+        source: { kind: 'llm-retry', form: 'notice', summary: 'Invalid tool JSON; regenerate the response.' },
+        content: [{ type: 'text', text:
+          'Your previous response was rejected because tool arguments were not valid JSON. '
+          + 'None of that response\'s tool calls executed. Generate the intended calls again using strict JSON: '
+          + 'each argument payload must be an object; match braces and brackets, use double-quoted keys and strings, '
+          + 'escape newlines and backslashes inside strings, and omit trailing commas. '
+          + 'Do not repeat earlier successful tool calls.',
+        }],
+      }), { surfaceOp: 'append' })
+    }
     agent.session.append('llm/retry-started', { retryId, turn, step, retry })
     return { kind: 'retry' }
   }

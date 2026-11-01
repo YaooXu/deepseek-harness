@@ -3,6 +3,13 @@ import type { RetryId } from './brand.ts'
 
 export type { RetryId }
 
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    /** Model-visible correction requested after an invalid-JSON attempt, before a permitted retry. */
+    'llm-retry': { kind: 'llm-retry'; form: 'notice'; summary: string }
+  }
+}
+
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
     /** Durable, non-surface record of one provider-routed retry scheduled after a failed request attempt. */

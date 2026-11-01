@@ -90,8 +90,14 @@ describe('invalid tool JSON recovery', () => {
     await h.run()
     expect(h.http.requests).toHaveLength(4)
     expect(h.executions()).toBe(2)
-    expect(h.http.requests[1]!.body).toEqual(h.http.requests[2]!.body)
+    expect(h.http.requests[1]!.body).not.toEqual(h.http.requests[2]!.body)
+    expect(JSON.stringify(h.http.requests[1]!.body)).not.toContain('Your previous response was rejected')
+    expect(JSON.stringify(h.http.requests[2]!.body)).toContain('Your previous response was rejected')
+    expect(JSON.stringify(h.http.requests[2]!.body)).toContain('Do not repeat earlier successful tool calls.')
     const events = h.agent.session.snapshotEvents()
+    const feedback = events.filter(e => e.type === 'user/message' && e.data.source.kind === 'llm-retry')
+    expect(feedback).toHaveLength(1)
+    expect(h.agent.session.deriveMessages()).toContainEqual(feedback[0]!.data)
     expect(events.filter(e => e.type === 'llm/retry').map(e => e.data.failure.code)).toEqual(['INVALID_TOOL_JSON'])
     expect(events.filter(e => e.type === 'tool/call')).toHaveLength(2)
     const attempts = events.filter(e => e.type === 'assistant/attempt')
@@ -113,6 +119,7 @@ describe('invalid tool JSON recovery', () => {
     const events = h.agent.session.snapshotEvents()
     expect(events.filter(e => e.type === 'llm/retry')).toHaveLength(2)
     expect(events.filter(e => e.type === 'assistant/attempt')).toHaveLength(3)
+    expect(events.filter(e => e.type === 'user/message' && e.data.source.kind === 'llm-retry')).toHaveLength(2)
     expect(events.filter(e => e.type === 'assistant/message')).toHaveLength(0)
     expect(events.at(-1)).toMatchObject({ type: 'turn/end', data: { reason: { kind: 'error', error: { code: 'INVALID_TOOL_JSON' } } } })
   })
@@ -123,6 +130,7 @@ describe('invalid tool JSON recovery', () => {
     expect(h.http.requests).toHaveLength(1)
     expect(h.executions()).toBe(0)
     expect(h.agent.session.snapshotEvents().filter(e => e.type === 'llm/retry')).toHaveLength(0)
+    expect(h.agent.session.snapshotEvents().filter(e => e.type === 'user/message' && e.data.source.kind === 'llm-retry')).toHaveLength(0)
   })
 
   it('cancels a scheduled recovery before another request', async () => {
@@ -134,6 +142,7 @@ describe('invalid tool JSON recovery', () => {
     expect(h.http.requests).toHaveLength(1)
     expect(h.executions()).toBe(0)
     expect(h.agent.session.snapshotEvents().filter(e => e.type === 'llm/retry-started')).toHaveLength(0)
+    expect(h.agent.session.snapshotEvents().filter(e => e.type === 'user/message' && e.data.source.kind === 'llm-retry')).toHaveLength(0)
     expect(h.agent.session.snapshotEvents().at(-1)).toMatchObject({
       type: 'turn/end', data: { reason: { kind: 'aborted' } },
     })

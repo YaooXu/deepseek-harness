@@ -51,13 +51,13 @@ Omission of `retryPolicy` uses normal mode: five retries for `EMPTY_RESPONSE`, `
 
 ### What you can observe
 
-Each scheduled retry is durable before its wait: the plugin appends a non-surface `llm/retry` event carrying the retry id, provider, mode, policy key, failure, and scheduled delay, then a `llm/retry-started` event immediately before the retry begins. A valid `Retry-After` from the provider replaces local backoff when it fits the policy bounds. When the wait completes, the loop re-runs the failed step inside the same open turn over the same durable history, so the retried request is reconstructable from the session log exactly like the original. Cancellation or plugin disposal aborts active backoff, drains active delegated recovery, and makes a callback captured before disposal fail closed.
+Each scheduled retry is durable before its wait: the plugin appends a non-surface `llm/retry` event carrying the retry id, provider, mode, policy key, failure, and scheduled delay, then a `llm/retry-started` event immediately before the retry begins. A valid `Retry-After` from the provider replaces local backoff when it fits the policy bounds. When the wait completes, the loop re-runs the failed step inside the same open turn over the current durable history, so the retried request is reconstructable from the session log exactly like the original. Cancellation or plugin disposal aborts active backoff, drains active delegated recovery, and makes a callback captured before disposal fail closed.
 
 ### Failures and recovery
 
-`INVALID_TOOL_JSON` rejects a completed model response whose tool arguments have invalid JSON syntax. The failed response remains an `assistant/attempt`; none of its tool calls execute, including valid siblings. A retry requests a new response over the same committed history, preserving earlier tool results without replaying their effects. It does not repair JSON or add the invalid response to model history. Other protocol failures remain outside the default retry set.
+`INVALID_TOOL_JSON` rejects a completed model response whose tool arguments have invalid JSON syntax. The failed response remains an `assistant/attempt`; none of its tool calls execute, including valid siblings. Before an eligible retry starts, the plugin appends a logged `user/message` notice with source `llm-retry`, asking for strict JSON and warning against repeating earlier successful calls. Earlier tool results remain intact. The plugin never repairs or executes rejected JSON; the invalid response stays outside model history. Exhaustion, cancellation and excluded error codes add no correction notice. Other protocol failures remain outside the default retry set.
 
-A failure before any final adapter is selected has no provider policy and delegates downstream unchanged. In normal mode, a failure code outside the eligible set, or an exhausted budget, delegates; in always mode, an over-cap provider delay uses the configured local backoff so the policy cannot terminate on that instruction. Nothing here is model-visible: no retry event, delay, provider error, or failed partial output reaches the model or derived messages.
+A failure before any final adapter is selected has no provider policy and delegates downstream unchanged. In normal mode, a failure code outside the eligible set, or an exhausted budget, delegates; in always mode, an over-cap provider delay uses the configured local backoff so the policy cannot terminate on that instruction. Only the invalid-JSON correction notice is model-visible; retry events, delays, raw provider errors and failed partial output remain diagnostic records.
 
 -----
 
@@ -85,7 +85,7 @@ The executor is built on one rule: **durable before wait, open-step boundaries.*
 
 The recovery listener is installed before awaiting projection registration. Failures arriving during activation wait for the reader before applying the provider policy. Registration failure propagates to the agent; cancellation or plugin disposal while waiting prevents retry records and further attempts.
 
-A failed step arrives on the waterfall with its provider and resolved policy. Always mode settles downstream recovery first and honors a downstream `retry` decision; normal mode first checks that the failure code is eligible and the budget is not exhausted. The plugin computes the delay — provider `Retry-After` when valid and within bounds, otherwise local bounded exponential backoff with symmetric jitter — appends the `llm/retry` event, waits on a cancellable timer, appends `llm/retry-started`, and returns `{ kind: 'retry' }`. The loop then re-runs the failed step inside the same open turn over the same durable history.
+A failed step arrives on the waterfall with its provider and resolved policy. Always mode settles downstream recovery first and honors a downstream `retry` decision; normal mode first checks that the failure code is eligible and the budget is not exhausted. The plugin computes the delay — provider `Retry-After` when valid and within bounds, otherwise local bounded exponential backoff with symmetric jitter — appends the `llm/retry` event, waits on a cancellable timer, appends `llm/retry-started`, and returns `{ kind: 'retry' }`. The loop then re-runs the failed step inside the same open turn over the current durable history, including the correction notice for invalid tool JSON.
 
 ### Waterfall composition
 
@@ -115,15 +115,15 @@ Read these pages when the package-level contract is not enough. They move from t
 
 #### What the model sees
 
-No retry event, delay, provider error, or failed partial output is model-visible. The retried step reconstructs the same explicit provider/model request from durable surface history unless a downstream recovery policy deliberately changes that surface; failed chunks never enter derived messages.
+Invalid tool JSON adds a logged notice asking the model to regenerate arguments as JSON objects, match braces and brackets, quote strings, escape newlines and backslashes, omit trailing commas, and avoid repeating earlier successful calls. Failed chunks, raw provider errors, retry events and delays never enter derived messages.
 
 #### Token effect
 
-Each retry is a new provider request and may repeat input-token billing. Normal mode has a finite budget; always mode can consume unbounded requests until success or cancellation. `llm/retry` itself contributes no tokens.
+Each retry is a new provider request and may repeat input-token billing. Normal mode has a finite budget; always mode can consume unbounded requests until success or cancellation. `llm/retry` itself contributes no tokens; each invalid-JSON retry adds one fixed-size correction notice.
 
 #### KV Cache effect
 
-The reconstructed request preserves the prior prefix and is eligible for provider cache reuse under that provider's rules. The non-surface retry event does not change cache identity.
+The reconstructed request preserves the prior prefix and is eligible for provider cache reuse under that provider's rules. The non-surface retry event does not change cache identity; a correction notice extends the retained message prefix.
 
 ## Known Limitations and Deferred Work
 
