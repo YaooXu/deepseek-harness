@@ -308,21 +308,26 @@ class SingleExeBuild {
       '--filter',
       DEPLOY_ROOT_PACKAGE,
       'deploy',
-      '--legacy',
       '--prod',
+      '--ignore-scripts',
+      '--config.inject-workspace-packages=true',
+      '--config.frozen-lockfile=true',
       // Production deployment omits workspace tooling such as Electron's patched signer.
       '--config.allow-unused-patches=true',
       '--config.node-linker=hoisted',
-      '--config.auto-install-peers=false',
+      '--config.auto-install-peers=true',
       '--config.link-workspace-packages=true',
       '--config.hoist-workspace-packages=false',
       this.staging,
     ]) } finally {
-      // Legacy deploy records production-only workspace state; restore the development installation before exec.
+      // Deploy records production-only workspace state; restore development dependencies before exec.
       await this.runPnpm('restore development dependencies', ['install', '--offline', '--frozen-lockfile', '--prod=false', '--ignore-scripts'])
     }
     await this.restoreLegacyHoists()
     await this.materializeStagedLinks()
+    await this.run('prepare packaged subprocess helper', process.execPath, [
+      join(this.staging, 'node_modules/@deepseek-ai/dsh-subprocess-local/scripts/ensure-spawn-helper.mjs'),
+    ])
     if (this.cli.dryRun) {
       for (const name of DEPLOY_ONLY_DOCS) console.log(`build-exe-for-python-sdk: [dry-run] rm -f ${join(this.staging, name)}`)
     } else {
@@ -355,7 +360,7 @@ class SingleExeBuild {
       return
     }
     await materializeStagedLinks(this.staging)
-    await deduplicateStagedWorkspacePackages(this.staging, root)
+    await deduplicateStagedWorkspacePackages(this.staging, this.staging)
   }
 
   /** Add the executable entry and pkg assets to the staged manifest. */

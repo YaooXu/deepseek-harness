@@ -17,6 +17,8 @@ Use `--skip-build` when the required `lib/` artifacts already exist, or `--targe
 
 ## Validate the SDK
 
+The executable builder deploys production dependencies from the shared frozen pnpm lockfile. It disables dependency lifecycle scripts during deployment and explicitly prepares the packaged subprocess helper; native prebuilt dependencies are checked when assembling the target runtime. A missing locked dependency stops the build.
+
 Keep the virtual environment outside `python/`, install the test group, and run the Python suite:
 
 ```sh
