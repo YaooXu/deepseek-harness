@@ -48,7 +48,7 @@ function start(
 
 async function harness(
   baseURL: string,
-  options: { streamIdleTimeoutMs?: number; initialDelayMs?: number } = {},
+  options: { streamIdleTimeoutMs?: number; initialDelayMs?: number; maxRetries?: number; retryableCodes?: string[] } = {},
 ): Promise<Context> {
   vi.stubEnv('DEEPSEEK_API_KEY', 'mock-key')
   const ctx = new Context()
@@ -58,7 +58,8 @@ async function harness(
     streamIdleTimeoutMs: options.streamIdleTimeoutMs ?? 1_000,
     retryPolicy: {
       mode: 'normal',
-      maxRetries: 2,
+      maxRetries: options.maxRetries ?? 2,
+      ...(options.retryableCodes === undefined ? {} : { retryableCodes: options.retryableCodes }),
       backoff: {
         initialDelayMs: options.initialDelayMs ?? 10,
         maxDelayMs: options.initialDelayMs ?? 10,
@@ -189,11 +190,12 @@ describe('bounded retry through the real DeepSeek HTTP/SSE adapter', () => {
     expect(finalAssistantText(agent)).toBe('recovered from empty')
   })
 
-  it('exposes a clean partial EOF as non-default-retryable STREAM_CLOSED', async () => {
+  it('retries a clean partial EOF without committing failed text', async () => {
     const server = await start(['partial_eof', 'success'], {
       apiKey: 'mock-key',
       partialText: 'discarded clean eof',
       chunkSize: 100,
+      successText: 'recovered after clean eof',
     })
     context = await harness(server.baseURL)
     const agent = await context.agentLoop.create(SessionId('wire-partial-eof'), {
@@ -203,14 +205,67 @@ describe('bounded retry through the real DeepSeek HTTP/SSE adapter', () => {
 
     await sendAndWait(context, agent)
 
-    expect(server.requests).toHaveLength(1)
+    expect(server.requests).toHaveLength(2)
+    expect(server.requests[0]?.body).toEqual(server.requests[1]?.body)
     const attempt = agent.session.snapshotEvents().find(event => event.type === 'assistant/attempt' && event.data.turn === 1)
     expect(attempt?.type === 'assistant/attempt' ? expandAssistantStream(attempt.data.stream) : []).toHaveLength(3)
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'step/start')
+      .map(event => [event.data.turn, event.data.step])).toEqual([[1, 1]])
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'assistant/message')
+      .map(event => [event.data.turn, event.data.step])).toEqual([[1, 1]])
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'llm/retry')
+      .map(event => event.data.failure.code)).toEqual(['STREAM_CLOSED'])
+    expect(JSON.stringify(agent.session.deriveMessages())).not.toContain('discarded clean eof')
+    expect(finalAssistantText(agent)).toBe('recovered after clean eof')
+    expect(agent.session.snapshotEvents().at(-1)).toMatchObject({
+      type: 'turn/end',
+      data: { reason: { kind: 'completed' } },
+    })
+  })
+
+  it.each([
+    { name: 'exhausted budget', options: { maxRetries: 2 }, requests: 3, retries: 2 },
+    { name: 'zero budget', options: { maxRetries: 0 }, requests: 1, retries: 0 },
+    { name: 'explicit code override', options: { retryableCodes: ['TRANSPORT'] }, requests: 1, retries: 0 },
+  ])('preserves the STREAM_CLOSED failure with $name', async ({ options, requests, retries }) => {
+    const server = await start(['partial_eof', 'partial_eof', 'partial_eof'], { apiKey: 'mock-key' })
+    context = await harness(server.baseURL, options)
+    const agent = await context.agentLoop.create(SessionId('wire-eof-bounded'), {
+      provider: 'deepseek-official', model: 'mock-model',
+    })
+
+    await sendAndWait(context, agent)
+
+    expect(server.requests).toHaveLength(requests)
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'assistant/attempt')).toHaveLength(requests)
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'step/start')).toHaveLength(1)
     expect(agent.session.snapshotEvents().some(event => event.type === 'assistant/message')).toBe(false)
-    expect(agent.session.snapshotEvents().some(event => event.type === 'llm/retry')).toBe(false)
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'llm/retry')
+      .map(event => event.data.failure.code)).toEqual(Array<string>(retries).fill('STREAM_CLOSED'))
     expect(agent.session.snapshotEvents().at(-1)).toMatchObject({
       type: 'turn/end',
       data: { reason: { kind: 'error', error: { message: 'DeepSeek Messages stream ended before message_stop', code: 'STREAM_CLOSED' } } },
+    })
+  })
+
+  it('cancels STREAM_CLOSED recovery before another request starts', async () => {
+    const server = await start(['partial_eof', 'success'], { apiKey: 'mock-key' })
+    context = await harness(server.baseURL)
+    const agent = await context.agentLoop.create(SessionId('wire-eof-cancel'), {
+      provider: 'deepseek-official', model: 'mock-model',
+    })
+    context.on('session/event', (session, event) => {
+      if (session === agent.session && event.type === 'llm/retry') agent.cancel({ kind: 'user' })
+    })
+
+    await sendAndWait(context, agent)
+
+    expect(server.requests).toHaveLength(1)
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'llm/retry')
+      .map(event => event.data.failure.code)).toEqual(['STREAM_CLOSED'])
+    expect(agent.session.snapshotEvents().some(event => event.type === 'llm/retry-started')).toBe(false)
+    expect(agent.session.snapshotEvents().at(-1)).toMatchObject({
+      type: 'turn/end', data: { reason: { kind: 'aborted' } },
     })
   })
 

@@ -13,6 +13,7 @@
     retryPolicy:
       mode: normal
       maxRetries: 2
+      retryableCodes: [EMPTY_RESPONSE, RATE_LIMIT, SERVER, TIMEOUT, TRANSPORT]
       backoff:
         initialDelayMs: 1
         maxDelayMs: 1

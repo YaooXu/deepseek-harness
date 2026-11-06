@@ -1,0 +1,10 @@
+version: 1
+scenario: stream-closed-retry
+profile: headless
+composition: stream-closed-retry
+recording: authored
+header:
+  class: stream-closed-retry
+  pin: true
+  systemPromptSource: text-turn
+  toolSchemasSource: text-turn
