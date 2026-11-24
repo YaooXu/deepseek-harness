@@ -27,6 +27,8 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
+完整响应中语法无效的工具 JSON 报告为 `INVALID_TOOL_JSON`，可按 normal 策略进行有界重试。允许的退避结束后，重试插件记录修正通知，要求模型重新生成严格 JSON，且不重复此前成功的调用。被拒响应中的工具调用均不执行；重试耗尽、取消和协议帧损坏仍报告失败。
+
 本包导出传输库；provider 插件向 harness LLM 服务注册路由。它在每次操作开始时从 Config 引用捕获连接选项。
 
 适配器接受 LLM 服务的[仅供请求使用的 user 输入](../llm/README.zh.md#use-this-package)，并可将其与持久历史混用；省略请求输入的身份与来源不会改变提供方内容。

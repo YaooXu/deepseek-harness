@@ -27,6 +27,8 @@ Provide the shared DeepSeek Messages transport, request configuration, and model
 <a id="use-this-package"></a>
 ## Use this package
 
+Completed invalid tool JSON is reported as `INVALID_TOOL_JSON`, eligible for the normal bounded retry policy. After a permitted backoff, the retry plugin records a correction notice asking the model to regenerate strict JSON without repeating earlier successful calls. No tool call from the rejected response executes; exhausted retries, cancellation, and malformed protocol frames remain failures.
+
 This package exports the transport library; the provider plugins register routes with the harness LLM service. It captures connection options from Config references once per operation.
 
 The adapter accepts the LLM service's [request-only user inputs](../llm/README.md#use-this-package) alongside durable history; omitting request-only identity and attribution does not alter provider content.

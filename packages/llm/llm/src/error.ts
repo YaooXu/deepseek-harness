@@ -44,6 +44,7 @@ export const LLM_FAILURE_CODES = {
   INVALID_PREPARED_CALL: {},
   INVALID_REPLAY_STATE: {},
   INVALID_REQUEST: {},
+  INVALID_TOOL_JSON: { retryChoice: true },
   INVALID_RESPONSE: {},
   MALFORMED_RESPONSE: { retryChoice: true },
   MISSING_CREDENTIAL: {},
@@ -98,6 +99,9 @@ export const ACCOUNT_QUOTA_EXCEEDED_CODE = 'ACCOUNT_QUOTA' satisfies BuiltinLlmF
  * to repeat.
  */
 export const EMPTY_RESPONSE_CODE = 'EMPTY_RESPONSE' satisfies BuiltinLlmFailureCode
+
+/** Completed response with invalid tool JSON; no tool from the attempt may execute. */
+export const INVALID_TOOL_JSON_CODE = 'INVALID_TOOL_JSON' satisfies BuiltinLlmFailureCode
 
 /**
  * Canonical provider-neutral code for a credential that was supplied but

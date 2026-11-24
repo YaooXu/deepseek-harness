@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for 2026-11-24-invalid-tool-json-retry.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/persistence-changes/2026-11-24-invalid-tool-json-retry.md
+/:
+  en: 3d5a424ae7d7e46b
+  zh: c22a8e4a62d8cc1a
+/2026-11-24-invalid-tool-json-retry:
+  en: 3243828b3e83b89d
+  zh: c18ab2ba5c50f1c2
+/2026-11-24-invalid-tool-json-retry/summary:
+  en: 6a922b9c68d58247
+  zh: d31786cc55fe11d7
+/2026-11-24-invalid-tool-json-retry/table-of-contents:
+  en: 6cf314a069ceb451
+  zh: 9adff678e9ecab3b
+/2026-11-24-invalid-tool-json-retry/declaration:
+  en: 6907136f28e48c90
+  zh: 02f8298485f3d8e7
+/2026-11-24-invalid-tool-json-retry/compatibility:
+  en: 6719c65713db05e0
+  zh: 3a1c3ba1f04b3ca8
+/2026-11-24-invalid-tool-json-retry/verification:
+  en: 747f3a3b19b83fb7
+  zh: 03fc0f3ad8321cac
+/2026-11-24-invalid-tool-json-retry/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269
